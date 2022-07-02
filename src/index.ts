@@ -4,6 +4,7 @@ import BodyParser from 'body-parser';
 
 import config from './config'
 import { ExpressLogger, Logger } from './logging';
+import cacheRoute from './cache';
 
 const app = Express();
 app.use(cors({
@@ -19,8 +20,10 @@ app.get("/", (_, response) => {
   return response.json({ success: true }).status(200);
 })
 
-// GET *
-app.get("*", (_, response) => {
+app.use(cacheRoute)
+
+// Any invalid route return 404
+app.all("*", (_, response) => {
   return response.status(404).end()
 })
 
