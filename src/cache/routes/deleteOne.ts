@@ -1,4 +1,6 @@
 import { Router } from 'express'
+import { Logger } from '../../logging'
+import { CacheService } from '../services/cache-service'
 
 const deleteOneRoute = Router()
 
@@ -19,10 +21,22 @@ const deleteOneRoute = Router()
  *    description: Delete cached value by key
  *    responses:
  *      '204': 
- *        description: No Content
+ *        description: Cache entry deleted successfully
+ *      '500':
+ *        description: Internal server error
  */
-deleteOneRoute.delete('/:key', (request, response) => {
-  return response.status(200).json({ action: 'deleteOne' }).end();
+deleteOneRoute.delete('/:key', async (request, response) => {
+  const cacheService = new CacheService()
+
+  try {
+    await cacheService.delete(request.params['key'])
+    return response.status(204).end()
+  } catch (error) {
+    Logger.error(error)
+
+    return response.status(500).end()
+  }
+  
 })
 
 export default deleteOneRoute

@@ -1,4 +1,6 @@
 import { Router } from 'express'
+import { Logger } from '../../logging'
+import { CacheService } from '../services/cache-service'
 
 const getAllRoute = Router()
 
@@ -13,10 +15,22 @@ const getAllRoute = Router()
  *    description: Get all cache entries
  *    responses:
  *      '200': 
- *        description: cached data
+ *        description: All cached data returned successfully
+ *      '500':
+ *        description: Internal server error
  */
-getAllRoute.get('/', (request, response) => {
-  return response.status(200).json({ action: 'getAll' }).end();
+getAllRoute.get('/', async (request, response) => {
+  const cacheService = new CacheService()
+
+  try {
+    const entries = await cacheService.getAll()
+    return response.status(200).json(entries).end()
+  } catch (error) {
+    Logger.error(error)
+    
+    return response.status(500).end()
+  }
+
 })
 
 export default getAllRoute
