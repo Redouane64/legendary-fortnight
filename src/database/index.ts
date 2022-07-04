@@ -1,9 +1,9 @@
 import { MongoClient } from 'mongodb'
-import config from '../config'
+import { appConfig } from '../config'
 import { Logger } from '../logging'
 
 // initialize mongodb client instance
-const client = new MongoClient(config.mongoUrl)
+const client = new MongoClient(appConfig.mongoUrl)
 
 ;(async () => {
 

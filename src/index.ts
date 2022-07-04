@@ -3,7 +3,7 @@ import cors from 'cors'
 import BodyParser from 'body-parser'
 import swaggerUi from 'swagger-ui-express'
 
-import config from './config'
+import { appConfig } from './config'
 import { ExpressLogger, Logger } from './logging'
 import cacheRoute from './cache'
 
@@ -45,6 +45,6 @@ app.all("*", (_, response) => {
   return response.status(404).end()
 })
 
-app.listen(config.port, config.host, () => {
-  Logger.info(`Listening on ${config.host}:${config.port}`)
+app.listen(appConfig.port, appConfig.host, () => {
+  Logger.info(`Listening on ${appConfig.host}:${appConfig.port}`)
 })

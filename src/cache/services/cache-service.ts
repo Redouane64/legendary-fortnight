@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import config from '../../config';
+import { appConfig } from '../../config';
 import client from '../../database';
 import { Logger } from '../../logging';
 import { CacheEntry } from '../interfaces/cache-entry.interface';
@@ -75,26 +75,11 @@ export class CacheService {
 
     const newEntry: CacheEntry = {
       key,
-      ttl: entry?.has_expired ? entry.ttl : config.defaultTtl,
+      ttl: entry?.has_expired ? entry.ttl : appConfig.defaultTtl,
       last_hit: Date.now(),
       
       data: Buffer.from(randomBytes(12)).toString('base64'),
     }
-    
-    /*
-    const { value } = await this.collection.findOneAndUpdate(
-      { key: key },
-      { $set: newEntry },
-      { 
-        upsert: true, 
-        returnDocument: 'after', 
-        projection: { _id: 0, key: 1, data: 1 } 
-      }
-    )
-      
-    // return random string
-    return { data: value!.data, key: value!.key }
-    */
 
     return await this._insertWithCacheSizeCheck(newEntry)
   }
@@ -185,7 +170,7 @@ export class CacheService {
     ).toArray()
 
     // if cache size is full, the we replace oldest entry
-    if (result.total >= config.cacheSize) {
+    if (result.total >= appConfig.cacheSize) {
       const replacedEntry = await this.collection.findOneAndReplace({
         key: result.oldest_entry.key
       }, {
@@ -205,7 +190,7 @@ export class CacheService {
     // else, we are good, we create new entry
     await this.collection.insertOne({
       key: entry.key,
-      ttl: entry.ttl ?? config.defaultTtl,
+      ttl: entry.ttl || appConfig.defaultTtl,
       last_hit: Date.now(),
       data: entry.data,
     })
