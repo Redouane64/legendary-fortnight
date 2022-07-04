@@ -7,6 +7,8 @@ export interface AppConfigProps {
   host: string
   port: number
   mongoUrl: string
+  defaultTtl: number
+  cacheSize: number
 }
 
 export default (() : AppConfigProps => ({
@@ -14,4 +16,6 @@ export default (() : AppConfigProps => ({
   host: process.env.HOST!,
   port: Number(process.env.PORT),
   mongoUrl: process.env.MONGO_URL!,
+  defaultTtl: Number(process.env.DEFAULT_TTL_MS) || 30_000,
+  cacheSize: Number(process.env.CACHE_SIZE) || 10,
 }))()
