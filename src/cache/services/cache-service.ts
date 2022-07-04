@@ -10,8 +10,14 @@ type CacheEntryDto = Pick<CacheEntry, 'data' | 'key'>
 
 type GetCacheEntryDto = CacheEntry & Record<'has_expired',boolean>
 
+
+type GetOldestEntryWithTotal = {
+  total: number,
+  oldest_entry: Pick<CacheEntry, 'key'>
+}
+
 export class CacheService {
-  private readonly cacheDatabaseName = 'cache_api'
+  private readonly cacheDatabaseName = 'cache_db'
   private readonly cacheCollectionName = 'cache'
 
   private readonly collection = client.db(this.cacheDatabaseName)
@@ -65,16 +71,17 @@ export class CacheService {
 
     // if we cache miss, either because of ttl exceeded
     // or entry does not exist in cache at all
-    Logger.info('Cache Hit')
-    
+    Logger.info('Cache Miss')
+
     const newEntry: CacheEntry = {
       key,
       ttl: entry?.has_expired ? entry.ttl : config.defaultTtl,
       last_hit: Date.now(),
-
+      
       data: Buffer.from(randomBytes(12)).toString('base64'),
     }
-
+    
+    /*
     const { value } = await this.collection.findOneAndUpdate(
       { key: key },
       { $set: newEntry },
@@ -87,20 +94,15 @@ export class CacheService {
       
     // return random string
     return { data: value!.data, key: value!.key }
+    */
+
+    return await this._insertWithCacheSizeCheck(newEntry)
   }
 
   async getAll(): Promise<CacheEntry[]> {
     return await this.collection.aggregate<CacheEntry>([
       {
         $addFields: {
-          expires: {
-            $toLong: {
-              $sum: [
-                '$last_hit',
-                '$ttl'
-              ]
-            }
-          },
           has_expired: {
             $lt: [
               {
@@ -135,8 +137,80 @@ export class CacheService {
   }
 
   async create(entry: CreateCacheDto) : Promise<CacheEntryDto> {
-    
-    return { key: '', data: '' }
+    // try update any existing entry with same key
+    const updateResult = await this.collection.findOneAndUpdate({
+      key: entry.key
+    }, {
+      $set: {
+        ttl: entry.ttl,
+        data: entry.data,
+        last_hit: Date.now()
+      }
+    }, {
+      returnDocument: 'after', 
+      projection: { _id: 0, key: 1, data: 1 }
+    })
+
+    // if an entry is updated, we return
+    if (updateResult?.lastErrorObject?.updatedExisting) {
+      return updateResult.value!;
+    }
+
+    // at this point of execution, we need to insert new entry.
+    return await this._insertWithCacheSizeCheck(entry)
+  }
+
+  async _insertWithCacheSizeCheck(entry: CreateCacheDto): Promise<CacheEntryDto> {
+    // get total cache size and the entry with oldest hit
+    const [result] = await this.collection.aggregate<GetOldestEntryWithTotal>(
+      [
+        {
+          '$sort': {
+            'last_hit': 1
+          }
+        }, {
+          '$group': {
+            '_id': null, 
+            'oldest_entry': {
+              '$first': {
+                'key': '$key',
+              }
+            }, 
+            'total': {
+              '$sum': 1
+            }
+          }
+        }
+      ]
+    ).toArray()
+
+    // if cache size is full, the we replace oldest entry
+    if (result.total >= config.cacheSize) {
+      const replacedEntry = await this.collection.findOneAndReplace({
+        key: result.oldest_entry.key
+      }, {
+        ttl: entry.ttl,
+        key: entry.key,
+        last_hit: Date.now(),
+        data: entry.data
+      }, { 
+        upsert: true,
+        returnDocument: 'after',
+        projection: { _id: 0, key: 1, data: 1 }
+      })
+
+      return replacedEntry.value!
+    }
+
+    // else, we are good, we create new entry
+    await this.collection.insertOne({
+      key: entry.key,
+      ttl: entry.ttl ?? config.defaultTtl,
+      last_hit: Date.now(),
+      data: entry.data,
+    })
+
+    return { key: entry.key, data: entry.data }
   }
 
   async delete(key: string): Promise<void> {
