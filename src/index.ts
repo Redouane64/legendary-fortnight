@@ -16,7 +16,7 @@ app.use(cors({
 app.disable('x-powered-by')
 
 app.use(ExpressLogger)
-app.use(BodyParser.urlencoded({ extended: false }))
+app.use(BodyParser.json())
 
 // Swagger doc
 app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
