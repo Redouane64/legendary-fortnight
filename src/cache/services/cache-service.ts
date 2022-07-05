@@ -11,10 +11,10 @@ type CacheEntryDto = Pick<CacheEntry, 'data' | 'key'>
 type GetCacheEntryDto = CacheEntry & Record<'has_expired',boolean>
 
 
-type GetOldestEntryWithTotal = {
+type GetOldestEntryWithTotal = Partial<{
   total: number,
-  oldest_entry: Pick<CacheEntry, 'key'>
-}
+  oldest_entry: Partial<Pick<CacheEntry, 'key'>>
+}>
 
 export class CacheService {
   private readonly cacheDatabaseName = 'cache_db'
@@ -147,7 +147,8 @@ export class CacheService {
 
   async _insertWithCacheSizeCheck(entry: CreateCacheDto): Promise<CacheEntryDto> {
     // get total cache size and the entry with oldest hit
-    const [result] = await this.collection.aggregate<GetOldestEntryWithTotal>(
+    const defaultResult: GetOldestEntryWithTotal = { total: 0 }
+    const [result = defaultResult] = await this.collection.aggregate<GetOldestEntryWithTotal>(
       [
         {
           '$sort': {
@@ -170,16 +171,18 @@ export class CacheService {
     ).toArray()
 
     // if cache size is full, the we replace oldest entry
-    if (result.total >= appConfig.cacheSize) {
-      const replacedEntry = await this.collection.findOneAndReplace({
-        key: result.oldest_entry.key
+    if (result.total! >= appConfig.cacheSize) {
+      const replacedEntry = await this.collection.findOneAndUpdate({
+        key: result?.oldest_entry?.key
       }, {
-        ttl: entry.ttl,
-        key: entry.key,
-        last_hit: Date.now(),
-        data: entry.data
+        $set: {
+          ttl: entry.ttl,
+          key: entry.key,
+          last_hit: Date.now(),
+          data: entry.data
+        }
       }, { 
-        upsert: true,
+        upsert: false,
         returnDocument: 'after',
         projection: { _id: 0, key: 1, data: 1 }
       })
